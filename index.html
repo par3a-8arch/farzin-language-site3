@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>آموزشگاه زبان فرزین</title>
+<style>
+  body { font-family: Tahoma, sans-serif; margin:0; padding:0; background:#f2f2f2; }
+  header { background:#4CAF50; color:white; padding:20px; text-align:center; font-size:24px; }
+  nav { background:#333; color:white; display:flex; justify-content:center; padding:10px; }
+  nav div { margin:0 15px; cursor:pointer; }
+  nav div:hover { text-decoration:underline; }
+  main { display:flex; flex-wrap:wrap; padding:20px; }
+  section { background:white; padding:15px; margin:10px; flex:1 1 300px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+  h2 { text-align:center; color:#333; }
+  input, select { width:100%; padding:8px; margin:5px 0; box-sizing:border-box; }
+  button { padding:10px 15px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer; }
+  button:hover { background:#45a049; }
+  #myProfile, #exploreList { background:#e8f5e9; padding:10px; border-radius:8px; margin-top:10px; }
+  footer { background:#333; color:white; text-align:center; padding:15px; margin-top:20px; }
+  .user-item { border-bottom:1px solid #ccc; padding:5px 0; }
+  .note { font-size:12px; color:#555; }
+  a { color:#4CAF50; text-decoration:none; }
+  a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<header>بسم الله الرحمن الرحیم</header>
+
+<nav>
+  <div id="booksTab">کتاب‌ها</div>
+  <div id="teachersTab">معلم‌ها</div>
+  <div id="registerTab">ثبت‌نام</div>
+</nav>
+
+<main>
+  <!-- بخش کتاب‌ها -->
+  <section id="booksSection">
+    <h2>کتاب‌ها</h2>
+    <ul>
+      <li>Get Ready 1</li>
+      <li>First Friend</li>
+      <li>Family Friend</li>
+      <li>Touchstone</li>
+    </ul>
+  </section>
+
+  <!-- بخش ثبت‌نام -->
+  <section id="registerSection">
+    <h2>ثبت‌نام</h2>
+    <form id="registerForm">
+      <label>نام:</label>
+      <input type="text" name="name" required>
+      <label>شماره تلفن:</label>
+      <input type="text" name="phone" required>
+      <label>سطح:</label>
+      <select name="level">
+        <option value="مقدماتی">مقدماتی</option>
+        <option value="متوسط">متوسط</option>
+        <option value="پیشرفته">پیشرفته</option>
+      </select>
+      <label><input type="checkbox" id="publicConsent"> می‌خواهم در بخش اکسپلور نمایش داده شوم</label>
+      <button type="submit">ثبت‌نام</button>
+      <div id="formMsg" style="color:red; margin-top:5px;"></div>
+    </form>
+
+    <!-- مشاهده پروفایل -->
+    <div id="myProfile"></div>
+    <div style="margin-top:10px;">
+      <span id="miniName"></span> - <span id="miniPhone"></span>
+      <a id="viewProfileBtn" href="#" style="display:none;">مشاهده پروفایل خود</a>
+    </div>
+
+    <!-- بخش اکسپلور -->
+    <h3>اکسپلور</h3>
+    <div id="exploreList">فعلاً کسی برای نمایش وجود ندارد.</div>
+  </section>
+</main>
+
+<footer>
+  طراح سایت: محمدپارسا چراغی زاده<br>
+  آموزشگاه زبان فرزین<br>
+  تماس: <br>
+  &copy; 2025 Farzin Language School
+</footer>
+
+<!-- Firebase و Analytics -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics.js";
+
+  // ==== Firebase Config پروژهٔ تو ====
+  const firebaseConfig = {
+    apiKey: "AIzaSyA4CsEdv__Yyu8zCIT1ScPWbuhhFFuGBI0",
+    authDomain: "english-class-25699.firebaseapp.com",
+    projectId: "english-class-25699",
+    storageBucket: "english-class-25699.firebasestorage.app",
+    messagingSenderId: "241882853965",
+    appId: "1:241882853965:web:2f5e059664d7df2b18a204",
+    measurementId: "G-5188LMX83X"
+  };
+
+  // ==== Initialize Firebase ====
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app);
+
+  // ==== فرم ثبت‌نام ====
+  const form = document.getElementById('registerForm');
+  const formMsg = document.getElementById('formMsg');
+  const myProfile = document.getElementById('myProfile');
+  const miniName = document.getElementById('miniName');
+  const miniPhone = document.getElementById('miniPhone');
+  const viewProfileBtn = document.getElementById('viewProfileBtn');
+  const exploreListEl = document.getElementById('exploreList');
+
+  let myDocId = null;
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    formMsg.textContent = '';
+    const name = form.name.value.trim();
+    const phone = form.phone.value.trim();
+    const level = form.level.value;
+    const consent = document.getElementById('publicConsent').checked;
+
+    if(!name || !phone){ formMsg.textContent = 'لطفاً همهٔ فیلدها را پر کنید.'; return }
+
+    try{
+      const docRef = await addDoc(collection(db, 'students'), {
+        name, phone, level, public: consent, createdAt: serverTimestamp()
+      });
+      myDocId = docRef.id;
+      formMsg.textContent = 'ثبت‌نام با موفقیت انجام شد!';
+
+      renderMyProfile({id: myDocId, name, phone, level});
+    }catch(err){
+      console.error(err);
+      formMsg.textContent = 'خطا در ثبت‌نام — لطفاً دوباره تلاش کنید.';
+    }
+  });
+
+  function renderMyProfile(user){
+    myProfile.innerHTML = `
+      <div><strong>نام:</strong> ${escapeHtml(user.name)}</div>
+      <div><strong>شماره:</strong> ${escapeHtml(user.phone)}</div>
+      <div><strong>سطح:</strong> ${escapeHtml(user.level)}</div>
+      <div style="margin-top:8px"><a href="#" onclick="showMyProfile()">مشاهده کامل پروفایل</a></div>
+    `;
+    miniName.textContent = user.name;
+    miniPhone.textContent = user.phone;
+    viewProfileBtn.style.display = 'inline-block';
+    viewProfileBtn.href = '#';
+  }
+
+  window.showMyProfile = function(){
+    if(!myDocId){ alert('شما هنوز ثبت‌نام نکرده‌اید'); return }
+    alert('نمایش پروفایل: (در نسخهٔ نمونه اینجا خلاصه نمایش داده می‌شود)');
+  }
+
+  const q = query(collection(db, 'students'), where('public', '==', true), orderBy('createdAt', 'desc'));
+
+  onSnapshot(q, (snapshot)=>{
+    exploreListEl.innerHTML = '';
+    if(snapshot.empty){ exploreListEl.textContent = 'فعلاً کسی برای نمایش وجود ندارد.'; return }
+    snapshot.forEach(doc=>{
+      const data = doc.data();
+      const dt = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleString() : '';
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      item.innerHTML = `<div><strong>${escapeHtml(data.name)}</strong> <span style="color:#888">(${escapeHtml(data.level)})</span></div><div class="note">عضو‌شدن: ${escapeHtml(dt)}</div>`;
+      exploreListEl.appendChild(item);
+    })
+  }, (err)=>{ console.error(err); exploreListEl.textContent = 'خطا در دریافت لیست.' });
+
+  function escapeHtml(text){
+    return String(text).replace(/[&<>\"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":"&#39;"}[m] });
+  }
+</script>
+
+</body>
+</html>
